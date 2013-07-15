@@ -34,7 +34,12 @@ namespace Sitecore.AzureExtensions.Data.DataProviders
 
 		protected CloudBlobContainer BlobContainer
 		{
-			get { return BlobClient.GetContainerReference(Settings.StorageContainerName); }
+			get
+			{
+				var container = BlobClient.GetContainerReference(Settings.StorageContainerName);
+				container.CreateIfNotExist();
+				return container;
+			}
 		}
 
 		public AzureBlobStorageProvider(string connectionString) : base(connectionString)
