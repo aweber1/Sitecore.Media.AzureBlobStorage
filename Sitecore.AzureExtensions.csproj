@@ -43,11 +43,14 @@
     <Reference Include="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Configuration\Settings.cs" />
     <Compile Include="Data\DataProviders\AzureBlobStorageProvider.cs" />
     <Compile Include="ExtensionMethods\BlobExtensions.cs" />
     <Compile Include="ExtensionMethods\ContainerExtensions.cs" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <None Include="readme.md" />
+  </ItemGroup>
   <ItemGroup>
     <Content Include="App_Config\Include\Sitecore.AzureExtensions.config">
       <SubType>Designer</SubType>

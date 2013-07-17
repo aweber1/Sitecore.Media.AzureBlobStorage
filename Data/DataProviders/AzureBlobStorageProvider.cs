@@ -21,24 +21,29 @@ namespace Sitecore.AzureExtensions.Data.DataProviders
 	{
 		private readonly LockSet _blobSetLocks;
 		private CloudStorageAccount _storageAccount;
+		private CloudBlobClient _blobClient;
+		private CloudBlobContainer _blobContainer;
 
 		protected CloudStorageAccount StorageAccount
 		{
-			get { return _storageAccount ?? (_storageAccount = CloudStorageAccount.Parse(Settings.StorageConnectionString)); }
+			get { return _storageAccount ?? (_storageAccount = CloudStorageAccount.Parse(Configuration.Settings.Media.AzureBlobStorage.StorageConnectionString)); }
 		}
 
 		protected CloudBlobClient BlobClient
 		{
-			get { return StorageAccount.CreateCloudBlobClient(); }
+			get { return  _blobClient ?? (_blobClient = StorageAccount.CreateCloudBlobClient()); }
 		}
 
 		protected CloudBlobContainer BlobContainer
 		{
 			get
 			{
-				var container = BlobClient.GetContainerReference(Settings.StorageContainerName);
-				container.CreateIfNotExist();
-				return container;
+				if (_blobContainer == null)
+				{
+					_blobContainer = BlobClient.GetContainerReference(Configuration.Settings.Media.AzureBlobStorage.StorageContainerName);
+					_blobContainer.CreateIfNotExist();
+				}
+				return _blobContainer;
 			}
 		}
 
@@ -50,23 +55,11 @@ namespace Sitecore.AzureExtensions.Data.DataProviders
 		public override Stream GetBlobStream(Guid blobId, CallContext context)
 		{
 			Assert.ArgumentNotNull(context, "context");
-			var blobSize = GetBlobSize(blobId);
-			return blobSize < 0L ? null : OpenBlobStream(blobId);
-		}
-
-		protected virtual long GetBlobSize(Guid blobId)
-		{
+			
 			var blob = BlobContainer.GetBlobReference(blobId.ToString());
 			if (!blob.Exists())
-				return -1;
+				return null;
 
-			return blob.Properties.Length;
-		}
-
-		protected virtual Stream OpenBlobStream(Guid blobId)
-		{
-			var blob = BlobContainer.GetBlobReference(blobId.ToString());
-			
 			var memStream = new MemoryStream();
 			blob.DownloadToStream(memStream);
 			return memStream;
@@ -201,27 +194,6 @@ namespace Sitecore.AzureExtensions.Data.DataProviders
 				}
 			}
 			return unusedBlobs;
-		}
-
-		public class Settings
-		{
-			private const string StorageConnectionStringSettingName = "Media.AzureBlobStorage.ConnectionString";
-			private const string StorageContainerSettingName = "Media.AzureBlobStorage.ContainerName";
-
-			public static string StorageContainerName
-			{
-				get { return GetSetting(StorageContainerSettingName); }
-			}
-
-			public static string StorageConnectionString
-			{
-				get { return GetSetting(StorageConnectionStringSettingName); }
-			}
-
-			public static string GetSetting(string name)
-			{
-				return Configuration.Settings.GetSetting(name);
-			}
 		}
 	}
 }
