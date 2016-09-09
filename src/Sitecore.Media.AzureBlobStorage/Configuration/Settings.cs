@@ -1,4 +1,4 @@
-﻿namespace Sitecore.AzureExtensions.Configuration
+﻿namespace Sitecore.Media.AzureBlobStorage.Configuration
 {
 	public class Settings
 	{
