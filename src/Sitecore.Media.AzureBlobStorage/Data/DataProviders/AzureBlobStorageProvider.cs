@@ -1,6 +1,5 @@
 ﻿namespace Sitecore.Media.AzureBlobStorage.Data.DataProviders
 {
-    using System;
     using System.IO;
     using Diagnostics;
     using Helpers;
@@ -10,34 +9,11 @@
 
     public class AzureBlobStorageProvider : ICloudStorageProvider
     {
-        #region Fields
-
-        //private CloudStorageAccount _storageAccount;
-        //private CloudBlobClient _blobClient;
-        //private CloudBlobContainer _blobContainer;
-
-        #endregion Fields
-
-        //protected CloudStorageAccount StorageAccount => _storageAccount ?? (_storageAccount = CloudStorageAccount.Parse(Configuration.Settings.Media.AzureBlobStorage.StorageConnectionString));
         protected CloudStorageAccount StorageAccount { get; set; }
 
-        //protected CloudBlobClient BlobClient => _blobClient ?? (_blobClient = StorageAccount.CreateCloudBlobClient());
         protected CloudBlobClient BlobClient { get; set; }
 
-        //protected CloudBlobContainer BlobContainer
-        //{
-        //    get
-        //    {
-        //        if (_blobContainer == null)
-        //        {
-        //            _blobContainer = BlobClient.GetContainerReference(Configuration.Settings.Media.AzureBlobStorage.StorageContainerName);
-        //            _blobContainer.CreateIfNotExists(BlobContainerPublicAccessType.Container);
-        //        }
-        //        return _blobContainer;
-        //    }
-        //}
         protected CloudBlobContainer BlobContainer { get; set; }
-
 
         #region ctor
 
@@ -118,7 +94,7 @@
 
         #endregion ICloudStorageProvider members
 
-        protected virtual CloudBlob GetBlobReference(string blobId)
+        internal virtual CloudBlob GetBlobReference(string blobId)
         {
             return BlobContainer.GetBlobReference(blobId);
         }

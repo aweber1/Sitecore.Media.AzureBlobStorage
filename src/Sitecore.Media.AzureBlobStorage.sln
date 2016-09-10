@@ -10,6 +10,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "content", "content", "{6962
 		..\README.md = ..\README.md
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Sitecore.Media.AzureBlobStorage.Tests", "Sitecore.Media.AzureBlobStorage.Tests\Sitecore.Media.AzureBlobStorage.Tests.csproj", "{43D2F959-D1E7-4BEF-8A91-F71E4458948D}"
+	ProjectSection(ProjectDependencies) = postProject
+		{B5761D5E-0CD9-44E4-85AF-DFA8D53A7836} = {B5761D5E-0CD9-44E4-85AF-DFA8D53A7836}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,6 +25,10 @@ Global
 		{B5761D5E-0CD9-44E4-85AF-DFA8D53A7836}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B5761D5E-0CD9-44E4-85AF-DFA8D53A7836}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B5761D5E-0CD9-44E4-85AF-DFA8D53A7836}.Release|Any CPU.Build.0 = Release|Any CPU
+		{43D2F959-D1E7-4BEF-8A91-F71E4458948D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{43D2F959-D1E7-4BEF-8A91-F71E4458948D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{43D2F959-D1E7-4BEF-8A91-F71E4458948D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{43D2F959-D1E7-4BEF-8A91-F71E4458948D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

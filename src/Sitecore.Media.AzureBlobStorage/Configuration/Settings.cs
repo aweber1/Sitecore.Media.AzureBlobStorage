@@ -59,7 +59,7 @@
             return Sitecore.Configuration.Settings.GetSetting(name);
         }
 
-        private static TimeSpan? GetNullableTimeSpan(string settingName, TimeSpan defaultValue)
+        internal static TimeSpan? GetNullableTimeSpan(string settingName, TimeSpan defaultValue)
         {
             var settingValue = Sitecore.Configuration.Settings.GetTimeSpanSetting(settingName, defaultValue);
             if (settingValue.Equals(TimeSpan.Parse("00:00:00")))
@@ -70,14 +70,14 @@
             return settingValue;
         }
 
-        private static int? GetNullableInt(string settingName, int defaultValue)
+        internal static int? GetNullableInt(string settingName, int defaultValue)
         {
             int? settingValue =
                 Sitecore.Configuration.Settings.GetIntSetting("Media.AzureBlobStorage.StreamWriteSizeInBytes", defaultValue);
             return settingValue > 0 ? settingValue : null;
         }
 
-        private static IRetryPolicy GetRetryPolicy(string policyName, TimeSpan deltaBackoff, int maxAttempts)
+        internal static IRetryPolicy GetRetryPolicy(string policyName, TimeSpan deltaBackoff, int maxAttempts)
         {
             IRetryPolicy policy;
             switch (policyName)
@@ -98,10 +98,10 @@
             return policy;
         }
 
-        private static LogLevel GetLogLevel(string logLevelName)
+        internal static LogLevel GetLogLevel(string logLevelName)
         {
             LogLevel logLevel;
-            bool success = LogLevel.TryParse(logLevelName, true, out logLevel);
+            bool success = Enum.TryParse(logLevelName, true, out logLevel);
 
             return success ? logLevel : LogLevel.Verbose;
         }

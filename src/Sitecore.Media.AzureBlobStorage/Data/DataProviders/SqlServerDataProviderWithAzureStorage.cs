@@ -10,7 +10,6 @@
     using Diagnostics;
     using Interfaces;
     using Microsoft.WindowsAzure.Storage;
-    using Microsoft.WindowsAzure.Storage.Blob;
     using Sitecore.Configuration;
     using Sitecore.Data;
     using Sitecore.Data.DataProviders;
@@ -22,29 +21,6 @@
     {
         private readonly LockSet _blobSetLocks;
         public readonly ICloudStorageProvider StorageProvider;
-        //private CloudStorageAccount _storageAccount;
-        //private CloudBlobClient _blobClient;
-        //private CloudBlobContainer _blobContainer;
-
-        //protected CloudStorageAccount StorageAccount
-        //{
-        //    get { return _storageAccount ?? (_storageAccount = CloudStorageAccount.Parse(Settings.Media.AzureBlobStorage.StorageConnectionString)); }
-        //}
-
-        //protected CloudBlobClient BlobClient => _blobClient ?? (_blobClient = StorageAccount.CreateCloudBlobClient());
-
-        //protected CloudBlobContainer BlobContainer
-        //{
-        //    get
-        //    {
-        //        if (_blobContainer == null)
-        //        {
-        //            _blobContainer = BlobClient.GetContainerReference(Settings.Media.AzureBlobStorage.StorageContainerName);
-        //            _blobContainer.CreateIfNotExists(BlobContainerPublicAccessType.Container);
-        //        }
-        //        return _blobContainer;
-        //    }
-        //}
 
         public SqlServerDataProviderWithAzureStorage(string connectionString) : base(connectionString)
         {
@@ -56,29 +32,18 @@
         {
             Assert.ArgumentNotNull(context, "context");
 
-            
-            //var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
-            //if (!blob.Exists())
-            //    return null;
-
             var memStream = new MemoryStream();
-            //blob.DownloadToStream(memStream);
             StorageProvider.Get(memStream, blobId.ToString());
             return memStream.Length > 0 ? memStream : null;
         }
 
         public override bool BlobStreamExists(Guid blobId, CallContext context)
         {
-            //var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
-            //return blob.Exists();
             return StorageProvider.Exists(blobId.ToString());
         }
 
         public override bool RemoveBlobStream(Guid blobId, CallContext context)
         {
-            //var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
-            //blob.DeleteIfExists();
-            //return base.RemoveBlobStream(blobId, context);
             return StorageProvider.Delete(blobId.ToString());
         }
 
@@ -88,10 +53,6 @@
             {
                 try
                 {
-                    //var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
-
-                    //SqlServer SetBlobStream method deletes existing blob before inserting, does UploadFromStream overwrite existing blob?
-                    //blob.UploadFromStream(stream);
                     StorageProvider.Put(stream, blobId.ToString());
 
                     //insert an empty reference to the BlobId into the SQL Blobs table, this is basically to assist with the cleanup process.
@@ -153,9 +114,7 @@
 
             foreach (var blobId in blobsToDelete)
             {
-                //var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
-                //blob.DeleteIfExists();
-                StorageProvider.Delete(blobId.ToString());
+                var success = StorageProvider.Delete(blobId.ToString());
             }
         }
 
