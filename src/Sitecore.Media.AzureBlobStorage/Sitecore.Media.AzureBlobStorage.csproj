@@ -53,11 +53,15 @@
     <Reference Include="System.Data" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Configuration\Constants.cs" />
     <Compile Include="Configuration\Settings.cs" />
     <Compile Include="Data\DataProviders\AzureBlobStorageProvider.cs" />
+    <Compile Include="Data\DataProviders\SqlServerDataProviderWithAzureStorage.cs" />
+    <Compile Include="Helpers\LogHelper.cs" />
+    <Compile Include="Interfaces\ICloudStorageProvider.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="App_Config\Include\Sitecore.AzureExtensions.config">
+    <Content Include="App_Config\Include\Sitecore.Media.AzureBlobStorage\Sitecore.Media.AzureBlobStorage.config">
       <SubType>Designer</SubType>
     </Content>
   </ItemGroup>

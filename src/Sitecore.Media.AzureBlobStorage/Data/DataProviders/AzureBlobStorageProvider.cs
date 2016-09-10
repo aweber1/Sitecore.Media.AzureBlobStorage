@@ -1,196 +1,155 @@
 ﻿namespace Sitecore.Media.AzureBlobStorage.Data.DataProviders
 {
     using System;
-    using System.Collections.Generic;
-    using System.Data;
-    using System.Data.SqlClient;
     using System.IO;
-    using System.Linq;
-    using Collections;
     using Diagnostics;
+    using Helpers;
+    using Interfaces;
     using Microsoft.WindowsAzure.Storage;
     using Microsoft.WindowsAzure.Storage.Blob;
-    using Sitecore.Configuration;
-    using Sitecore.Data;
-    using Sitecore.Data.DataProviders;
-    using Sitecore.Data.Managers;
-    using Sitecore.Data.SqlServer;
-    using Settings = Configuration.Settings;
 
-    public class AzureBlobStorageProvider : SqlServerDataProvider
+    public class AzureBlobStorageProvider : ICloudStorageProvider
     {
-        private readonly LockSet _blobSetLocks;
-        private CloudStorageAccount _storageAccount;
-        private CloudBlobClient _blobClient;
-        private CloudBlobContainer _blobContainer;
+        #region Fields
 
-        protected CloudStorageAccount StorageAccount
+        //private CloudStorageAccount _storageAccount;
+        //private CloudBlobClient _blobClient;
+        //private CloudBlobContainer _blobContainer;
+
+        #endregion Fields
+
+        //protected CloudStorageAccount StorageAccount => _storageAccount ?? (_storageAccount = CloudStorageAccount.Parse(Configuration.Settings.Media.AzureBlobStorage.StorageConnectionString));
+        protected CloudStorageAccount StorageAccount { get; set; }
+
+        //protected CloudBlobClient BlobClient => _blobClient ?? (_blobClient = StorageAccount.CreateCloudBlobClient());
+        protected CloudBlobClient BlobClient { get; set; }
+
+        //protected CloudBlobContainer BlobContainer
+        //{
+        //    get
+        //    {
+        //        if (_blobContainer == null)
+        //        {
+        //            _blobContainer = BlobClient.GetContainerReference(Configuration.Settings.Media.AzureBlobStorage.StorageContainerName);
+        //            _blobContainer.CreateIfNotExists(BlobContainerPublicAccessType.Container);
+        //        }
+        //        return _blobContainer;
+        //    }
+        //}
+        protected CloudBlobContainer BlobContainer { get; set; }
+
+
+        #region ctor
+
+        public AzureBlobStorageProvider(string blobStorageConnectionString, string storageContainerName)
         {
-            get { return _storageAccount ?? (_storageAccount = CloudStorageAccount.Parse(Settings.Media.AzureBlobStorage.StorageConnectionString)); }
+            StorageAccount = CloudStorageAccount.Parse(blobStorageConnectionString);
+            BlobClient = StorageAccount.CreateCloudBlobClient();
+            BlobContainer = CreateBlobContainer(BlobClient, storageContainerName);
         }
 
-        protected CloudBlobClient BlobClient => _blobClient ?? (_blobClient = StorageAccount.CreateCloudBlobClient());
+        #endregion ctor
 
-        protected CloudBlobContainer BlobContainer
+        #region ICloudStorageProvider members
+
+        public void Put(Stream stream, string blobId)
         {
-            get
+            // Use BlockBlob to store media assets
+            // If blob with such Id already exists, it will be overwritten
+            var blob = BlobContainer.GetBlockBlobReference(blobId);
+
+            // Set blob streaming chunks if file larger than value specified in SingleBlobUploadThresholdInBytes setting.
+            var streamWriteSizeBytes = Configuration.Settings.Media.AzureBlobStorage.StreamWriteSizeInBytes;
+            if (streamWriteSizeBytes.HasValue && streamWriteSizeBytes.Value > 0)
             {
-                if (_blobContainer == null)
-                {
-                    _blobContainer = BlobClient.GetContainerReference(Settings.Media.AzureBlobStorage.StorageContainerName);
-                    _blobContainer.CreateIfNotExists(BlobContainerPublicAccessType.Container);
-                }
-                return _blobContainer;
+                blob.StreamWriteSizeInBytes = streamWriteSizeBytes.Value;
+            }
+
+            var requestProperties = GetRequestProperties();
+            var timer = new HighResTimer(true);
+            //SqlServer SetBlobStream method deletes existing blob before inserting, does UploadFromStream overwrite existing blob?
+            blob.UploadFromStream(stream, options: requestProperties.Item1, operationContext: requestProperties.Item2);
+            timer.Stop();
+            LogHelper.LogDebugInfo($"Upload of blob {blobId} of size {stream.Length} took {timer.ElapsedTimeSpan.ToString(Configuration.Constants.TimeSpanDebugFormat)}");
+
+#if DEBUG
+            var requestsInfo = new System.Text.StringBuilder();
+            foreach (var request in requestProperties.Item2.RequestResults)
+            {
+                requestsInfo.AppendLine($"{request.ServiceRequestID} - {request.HttpStatusCode} - {request.HttpStatusMessage} - bytes: {request.EgressBytes}");
+            }
+            Log.Info($"operationContext.RequestResults: {requestsInfo}", this);
+#endif
+        }
+
+        public void Get(Stream target, string blobId)
+        {
+            var blob = GetBlobReference(blobId);
+            if (blob.Exists())
+            {
+                var requestProperties = GetRequestProperties();
+                var timer = new HighResTimer(true);
+                blob.DownloadToStream(target: target, options: requestProperties.Item1,
+                    operationContext: requestProperties.Item2);
+                timer.Stop();
+                LogHelper.LogDebugInfo(
+                    $"Download of blob with Id {blobId} of size {target.Length} took {timer.ElapsedTimeSpan.ToString(Configuration.Constants.TimeSpanDebugFormat)}");
             }
         }
 
-        public AzureBlobStorageProvider(string connectionString) : base(connectionString)
+        public bool Delete(string blobId)
         {
-            _blobSetLocks = new LockSet();
+            var blob = GetBlobReference(blobId);
+            var requestProperties = GetRequestProperties();
+            var success = blob.DeleteIfExists(options: requestProperties.Item1, operationContext: requestProperties.Item2);
+            LogHelper.LogDebugInfo($"Blob with Id {blobId} {(success ? "was" : "was not")} deleted");
+            if (!success)
+            {
+                LogHelper.LogDebugInfo($"Delete operation context StatusCode: {requestProperties.Item2.LastResult?.HttpStatusCode}, StatusMessage: {requestProperties.Item2.LastResult?.HttpStatusMessage}, ErrorMessage: {requestProperties.Item2.LastResult?.ExtendedErrorInformation?.ErrorMessage}");
+            }
+            return success;
         }
 
-        public override Stream GetBlobStream(Guid blobId, CallContext context)
+        public bool Exists(string blobId)
         {
-            Assert.ArgumentNotNull(context, "context");
-            
-            var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
-            if (!blob.Exists())
-                return null;
-
-            var memStream = new MemoryStream();
-            blob.DownloadToStream(memStream);
-            return memStream;
-        }
-
-        public override bool BlobStreamExists(Guid blobId, CallContext context)
-        {
-            var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
+            var blob = BlobContainer.GetBlobReference(blobId);
             return blob.Exists();
         }
 
-        public override bool RemoveBlobStream(Guid blobId, CallContext context)
+        #endregion ICloudStorageProvider members
+
+        protected virtual CloudBlob GetBlobReference(string blobId)
         {
-            var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
-            blob.DeleteIfExists();
-            return base.RemoveBlobStream(blobId, context);
+            return BlobContainer.GetBlobReference(blobId);
         }
 
-        public override bool SetBlobStream(Stream stream, Guid blobId, CallContext context)
+        protected virtual System.Tuple<BlobRequestOptions, OperationContext> GetRequestProperties()
         {
-            lock (_blobSetLocks.GetLock(blobId))
+            var requestOptions = new BlobRequestOptions()
             {
-                var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
+                MaximumExecutionTime = Configuration.Settings.Media.AzureBlobStorage.MaximumExecutionTime,
+                ParallelOperationThreadCount = Configuration.Settings.Media.AzureBlobStorage.ParallelOperationThreadCount,
+                RetryPolicy = Configuration.Settings.Media.AzureBlobStorage.RetryPolicy,
+                ServerTimeout = Configuration.Settings.Media.AzureBlobStorage.RequestServerTimeout,
+                SingleBlobUploadThresholdInBytes = Configuration.Settings.Media.AzureBlobStorage.SingleBlobUploadThresholdInBytes,
+                StoreBlobContentMD5 = Configuration.Settings.Media.AzureBlobStorage.StoreBlobContentMD5,
+                UseTransactionalMD5 = Configuration.Settings.Media.AzureBlobStorage.UseTransactionalMD5
+            };
 
-                //SqlServer SetBlobStream method deletes existing blob before inserting, does UploadFromStream overwrite existing blob?
-                blob.UploadFromStream(stream);
-                
-                //insert an empty reference to the BlobId into the SQL Blobs table, this is basically to assist with the cleanup process.
-                //during cleanup, it's faster to query the database for the blobs that should be removed as opposed to retrieving and parsing a list from Azure.
-                const string cmdText = "INSERT INTO [Blobs]( [Id], [BlobId], [Index], [Created], [Data] ) VALUES(   NewId(), @blobId, @index, @created, @data)";
-                using (var connection = new SqlConnection(Api.ConnectionString))
-                {
-                    connection.Open();
-                    var command = new SqlCommand(cmdText, connection)
-                    {
-                        CommandTimeout = (int)CommandTimeout.TotalSeconds
-                    };
-                    command.Parameters.AddWithValue("@blobId", blobId);
-                    command.Parameters.AddWithValue("@index", 0);
-                    command.Parameters.AddWithValue("@created", DateTime.UtcNow);
-                    command.Parameters.Add("@data", SqlDbType.Image, 0).Value = new byte[0];
-                    command.ExecuteNonQuery();
-                }
-            }
-            return true;
+            var operationContext = new OperationContext()
+            {
+                LogLevel = Configuration.Settings.Media.AzureBlobStorage.OperationContextLogLevel
+            };
+
+            
+            return System.Tuple.Create(requestOptions, operationContext);
         }
 
-        protected override void CleanupBlobs(CallContext context)
+        private CloudBlobContainer CreateBlobContainer(CloudBlobClient blobClient, string storageContainerName)
         {
-            Factory.GetRetryer().ExecuteNoResult(() => DoCleanup(context));
-        }
-
-        //the majority of the code for the CleanupBlobs process is from the default SQL Server Data Provider
-        protected virtual void DoCleanup(CallContext context)
-        {
-            IEnumerable<Guid> blobsToDelete;
-
-            using (var transaction = Api.CreateTransaction())
-            {
-                const string blobsInUseTempTableName = "#BlobsInUse";
-                Api.Execute("CREATE TABLE {0}" + blobsInUseTempTableName + "{1} ({0}ID{1} {0}uniqueidentifier{1})", new object[0]);
-
-                var blobsInUse = GetBlobsInUse(context.DataManager.Database);
-
-                foreach (var blobReference in blobsInUse)
-                {
-                    Api.Execute("INSERT INTO {0}" + blobsInUseTempTableName + "{1} VALUES ({2}id{3})", new object[] { "id", blobReference });
-                }
-
-                blobsToDelete = GetUnusedBlobs("#BlobsInUse");
-                
-                const string sql = " DELETE\r\n FROM {0}Blobs{1}\r\n WHERE {0}BlobId{1} NOT IN (SELECT {0}ID{1} FROM {0}" + blobsInUseTempTableName + "{1})";
-                Api.Execute(sql, new object[0]);
-                Api.Execute("DROP TABLE {0}" + blobsInUseTempTableName + "{1}", new object[0]);
-                transaction.Complete();
-            }
-
-            foreach (var blobId in blobsToDelete)
-            {
-                var blob = BlobContainer.GetBlockBlobReference(blobId.ToString());
-                blob.DeleteIfExists();
-            }
-        }
-
-        //note: items in the recycle bin are technically still referenced/in use, so be sure to empty the recycle bin before attempting clean up blobs
-        protected virtual IEnumerable<Guid> GetBlobsInUse(Database database)
-        {
-            var tables = new[] { "SharedFields", "UnversionedFields", "VersionedFields", "ArchivedFields" };
-            var blobsInUse = new List<Guid>();
-            foreach (var template in TemplateManager.GetTemplates(database).Values)
-            {
-                foreach (var field in template.GetFields())
-                {
-                    if (!field.IsBlob)
-                        continue;
-
-                    foreach (var sql in tables.Select(table => "SELECT DISTINCT {0}Value{1}\r\n FROM {0}" + table + "{1}\r\n WHERE {0}FieldId{1} = {2}fieldId{3}\r\n AND {0}Value{1} IS NOT NULL \r\n AND {0}Value{1} != {6}"))
-                    {
-                        using (var reader = Api.CreateReader(sql, new object[] { "fieldId", field.ID }))
-                        {
-                            while (reader.Read())
-                            {
-                                var id = Api.GetString(0, reader);
-                                if (id.Length > 38)
-                                {
-                                    id = id.Substring(0, 38);
-                                }
-                                ID parsedId;
-                                if (ID.TryParse(id, out parsedId))
-                                {
-                                    blobsInUse.Add(parsedId.Guid);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            return blobsInUse;
-        }
-        
-        protected virtual IEnumerable<Guid> GetUnusedBlobs(string blobsInUseTempTableName)
-        {
-            var unusedBlobs = new List<Guid>();
-            //this database call is dependent on the #BlobsInUse temporary table
-            var sql = "SELECT {0}BlobId{1}\r\n FROM {0}Blobs{1}\r\b WHERE {0}BlobId{1} NOT IN (SELECT {0}ID{1} FROM {0}" + blobsInUseTempTableName + "{1})";
-            using (var reader = Api.CreateReader(sql, new object[0]))
-            {
-                while (reader.Read())
-                {
-                    var id = Api.GetGuid(0, reader);
-                    unusedBlobs.Add(id);
-                }
-            }
-            return unusedBlobs;
+            var container = blobClient.GetContainerReference(storageContainerName);
+            container.CreateIfNotExists();
+            return container;
         }
     }
 }
