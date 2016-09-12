@@ -6,6 +6,7 @@ This module allows to store Sitecore media library assets in the Azure Blob Stor
 * Move ```Sitecore.Media.AzureBlobStorage.dll``` to the ```\bin``` folder of your Sitecore application.
 * Move ```App_Config\Include\Sitecore.Media.AzureBlobStorage``` folder to the ```App_Config\Include``` directory of you Sitecore application.
 * Adjust settings in the ```App_Config\Include\Sitecore.Media.AzureBlobStorage\Sitecore.Media.AzureBlobStorage.config``` file if necessary.
+* Disable ```Media.DisableFileMedia``` setting in your Sitecore application configuration.
 
 # Implementation details
 This module overrides the following methods from default implementation of SqlServerDataProvider in order to replace underlying blob storage for media assets:  
