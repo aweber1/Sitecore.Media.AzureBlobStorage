@@ -7,6 +7,9 @@ This module allows to store Sitecore media library assets in the Azure Blob Stor
 * Move ```App_Config\Include\Sitecore.Media.AzureBlobStorage``` folder to the ```App_Config\Include``` directory of you Sitecore application.
 * Adjust settings in the ```App_Config\Include\Sitecore.Media.AzureBlobStorage\Sitecore.Media.AzureBlobStorage.config``` file if necessary.
 * Disable ```Media.DisableFileMedia``` setting in your Sitecore application configuration.
+* Set ```maxRequestLength``` attribute of ```httpRuntime``` section to set the size limit in KB for large media assets that you want to upload into Sitecore media library.
+* Set ```maxAllowedContentLength``` attribute of ```/system.webServer/security/requestFiltering/requestLimits``` section to match the value specified in ```maxRequestLength``` attribute. This value should be in bytes instead of KB.
+* Set ```Media.MaxSizeInDatabase``` setting to match size limit specified in ```maxRequestLength``` attribute. This value could be specified in KB, MB or GB.  
 
 # Implementation details
 This module overrides the following methods from default implementation of SqlServerDataProvider in order to replace underlying blob storage for media assets:  
